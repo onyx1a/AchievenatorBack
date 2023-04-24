@@ -1,9 +1,7 @@
 import os
-import requests
 import aiohttp
 import asyncio
 
-from requests.exceptions import ConnectTimeout
 from flask import Flask, jsonify
 from flask_caching import Cache
 
@@ -16,7 +14,6 @@ app = Flask(__name__)
 app.config.from_mapping(config)
 cache = Cache(app)
 
-
 GAME_LIST_URL = "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/"
 GAME_INFO_URL = (
     "http://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v0001/"
@@ -25,75 +22,75 @@ STEAM_SECRET_KEY = os.environ["STEAM_SECRET_KEY"]
 DEFAULT_REQUEST_TIMEOUT = 1
 
 
-def get_game_list(steamid):
+async def get_game_list(steamid):
     payload = {
         "key": STEAM_SECRET_KEY,
         "steamid": steamid,
-        "include_appinfo": True,
-        "include_played_free_games": True,
-        "format": "json",
+        "include_appinfo": "true",
+        "include_played_free_games": "true",
+        "format": "json"
     }
+    timeout = aiohttp.ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
     print("Getting data about games...")
     prof = Profiler()
     games_list = []
     try:
-        data = requests.get(GAME_LIST_URL, params=payload, timeout=DEFAULT_REQUEST_TIMEOUT)
-        if data.status_code == 200:
-            games_list = data.json()["response"]["games"]
-            print(f"Found {len(games_list)} games in {prof.elapsed}s")
-            success = True
-        else:
-            success = False
-        return games_list, success, data.status_code
-    except ConnectTimeout:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(GAME_LIST_URL, params=payload) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    games_list = data["response"]["games"]
+                    print(f"Found {len(games_list)} games in {prof.elapsed}s")
+                    success = True
+                else:
+                    success = False
+                return games_list, success, response.status
+    except asyncio.TimeoutError:
         return [], False, -1
 
 
-def get_game_info(game, steamid):
+async def get_game_info_async(game, steamid):
     app_id = game["appid"]
     payload = {"appid": app_id, "key": STEAM_SECRET_KEY, "steamid": steamid}
-    data = requests.get(GAME_INFO_URL, params=payload, timeout=DEFAULT_REQUEST_TIMEOUT)
-    info = data.json()["playerstats"]
-    try:
-        # done_achievements = 0
-        done_achievements = sum(1 for achievement_data in info["achievements"] if achievement_data["achieved"] == 1)
-        all_ach = len(info["achievements"])
+    timeout = aiohttp.ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(GAME_INFO_URL, params=payload, timeout=timeout) as response:
+                data = await response.json()
+                info = data["playerstats"]
+                try:
+                    done_achievements = sum(
+                        1 for achievement_data in info["achievements"] if achievement_data["achieved"] == 1)
+                    all_ach = len(info["achievements"])
 
-        game_info = GameInfo(
-            app_id, info["gameName"], all_ach, done_achievements, game["img_icon_url"]
-        )
-        return game_info
-    except KeyError:
-        return None
-    except ConnectTimeout:
-        return None
+                    game_info = GameInfo(
+                        app_id, info["gameName"], all_ach, done_achievements, game["img_icon_url"]
+                    )
+                    return game_info
+                except KeyError:
+                    return None
+        except asyncio.TimeoutError:
+            return None
 
 
 @app.route("/data/<steamid>")
-def index(steamid):
-    games_list, status, code = get_game_list(steamid)
+async def index(steamid):
+    games_list, status, code = await get_game_list(steamid)
     game_data = []
     overall_ach_count = 0
     overall_done_ach_count = 0
     print("Start parsing games...")
     prof = Profiler()
     for game in games_list:
-        # print(g)
-        # prof2 = Profiler()
-        info = get_game_info(game, steamid)
+        info = await get_game_info_async(game, steamid)
         if info:
             game_data.append(info.serialize())
             overall_ach_count += info.achievements_count
             overall_done_ach_count += info.achievements_done
-        # print(prof2.elapsed)
-    print("Done at", prof.elapsed)
+    print("Done in", prof.elapsed)
     prof.reload()
     print("Sorting list")
-    # if game_data:
-    #     game_data.sort(key=lambda a: a.score)
-    print("Done at", prof.elapsed)
-    # overall_done_ach_count = 10
-    # overall_ach_count = 20
+    print("Done in", prof.elapsed)
     return jsonify(
         {
             "status": status,
@@ -106,4 +103,10 @@ def index(steamid):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        app.run(debug=True)
+    except KeyboardInterrupt:
+        pass
+    # app.run(debug=True)
