@@ -28,7 +28,7 @@ async def get_game_list(steamid):
         "steamid": steamid,
         "include_appinfo": "true",
         "include_played_free_games": "true",
-        "format": "json"
+        "format": "json",
     }
     timeout = aiohttp.ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
     print("Getting data about games...")
@@ -55,16 +55,25 @@ async def get_game_info_async(game, steamid):
     timeout = aiohttp.ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(GAME_INFO_URL, params=payload, timeout=timeout) as response:
+            async with session.get(
+                GAME_INFO_URL, params=payload, timeout=timeout
+            ) as response:
                 data = await response.json()
                 info = data["playerstats"]
                 try:
                     done_achievements = sum(
-                        1 for achievement_data in info["achievements"] if achievement_data["achieved"] == 1)
+                        1
+                        for achievement_data in info["achievements"]
+                        if achievement_data["achieved"] == 1
+                    )
                     all_ach = len(info["achievements"])
 
                     game_info = GameInfo(
-                        app_id, info["gameName"], all_ach, done_achievements, game["img_icon_url"]
+                        app_id,
+                        info["gameName"],
+                        all_ach,
+                        done_achievements,
+                        game["img_icon_url"],
                     )
                     return game_info
                 except KeyError:
