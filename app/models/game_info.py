@@ -10,13 +10,13 @@ class GameInfo:
         title: str,
         achievements_count: int,
         achievements_done: int,
-        img_icon_url: str,
+        achievements_info,
     ) -> None:
         self.app_id = app_id
         self.title = title
         self.achievements_count = achievements_count
         self.achievements_done = achievements_done
-        self.img_icon_url_hash = img_icon_url
+        self.achievements_info = achievements_info
 
     @property
     def score(self) -> int:
@@ -30,21 +30,13 @@ class GameInfo:
     def icon_url(self) -> str:
         return f"https://media.steampowered.com/steamcommunity/public/images/apps/{self.app_id}/{self.img_icon_url_hash}.jpg"
 
-    # def __repr__(self):
-    #     return f"app_id\": {self.app_id}, \"gameTitle\": \"{self.title}\", \"achievements_count\": {self.achievements_count}, \"achievements_done\": {self.achievements_done}, \"img_icon_url_hash\": \"{self.img_icon_url_hash}"
-    #
-    # def __str__(self):
-    #     return f"app_id\": {self.app_id}, \"gameTitle\": \"{self.title}\", \"achievements_count\": {self.achievements_count}, \"achievements_done\": {self.achievements_done}, \"img_icon_url_hash\": \"{self.img_icon_url_hash}"
-    #
-
     def serialize(self):
         return {
             "app_id": self.app_id,
             "title": self.title,
-            # "score": self.score,
-            "img_icon_url_hash": self.img_icon_url_hash,
-            "achievements_count": self.achievements_count,
-            "achievements_done": self.achievements_done
+            "a_count": self.achievements_count,
+            "a_done": self.achievements_done,
+            "a_info": self.achievements_info,
         }
 
     def to_json(self):
