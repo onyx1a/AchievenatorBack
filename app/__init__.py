@@ -7,6 +7,7 @@ import aiohttp
 from flask import Flask, jsonify
 from flask_caching import Cache
 
+from app.utils.custom_response import DefaultResponse, ResponseCode
 from app.utils.profiler import InlineProfiler, GlobalProfiler
 from app.models.game_info import GameInfo
 
@@ -62,41 +63,58 @@ async def get_game_list(steamid):
                 if response.status == 200:
                     data = await response.json()
                     games_list = data["response"]["games"][:GAME_COUNT]
-                    print(f"Found {len(games_list)} games in {prof.elapsed}s")
-                    success = True
-                else:
-                    success = False
-                return games_list, success, response.status
+                    print(f"Found {len(games_list)} games")
+                return games_list, response.status
     except asyncio.TimeoutError:
-        return [], False, -1
+        return [], -1
 
 
-@app.route("/data/<steamid>")
-@app.route("/data/<steamid>/<lang>")
-async def index(steamid, lang="english"):
-    steamid_cache_key = f"/data/{steamid}"
 @global_profiler.async_profiler
 async def get_achievements_info(game_info, data, lang):
+    achievements_cache_key = f"/achievements/{game_info.app_id}/{lang}"
+    achievements_info = cache.get(achievements_cache_key)
+    if not achievements_info:
+        ach_list_result = await fetch_achievements_info(game_info.app_id, lang)
+        achievements_info = ach_list_result["game"]["availableGameStats"][
+            "achievements"
+        ]
+        cache.set(achievements_cache_key, achievements_info)
+
+    game_info.achievements_done = sum(1 for a in data["achievements"] if a["achieved"])
+    game_info.achievements_count = len(data["achievements"])
+    game_info.title = data["gameName"]
+    game_info.achievements_info.extend(
+        {
+            "icon": os.path.splitext(os.path.basename(urlparse(i["icon"]).path))[0],
+            "icongray": os.path.splitext(
+                os.path.basename(urlparse(i["icongray"]).path)
+            )[0],
+            "description": i["description"] if "description" in i else "",
+            "name": i["name"],
+        }
+        for a in data["achievements"]
+        for i in achievements_info
+        if a["achieved"] == 0 and a["apiname"] == i["name"]
+    )
+    return game_info
+
+
 @global_profiler.async_profiler
 async def prepare_game_info(steamid, lang, game_list):
+    response = DefaultResponse()
+    response.data = []
 
-    data = cache.get(steamid_cache_key)
-    if not data:
-        games_list, status, code = await get_game_list(steamid)
-        cache.set(steamid_cache_key, games_list)
-    else:
-        status = True
-        code = 200
-        games_list = data
-    info_list = []
     overall_ach_count = 0
     overall_done_ach_count = 0
-    print("Start parsing games...")
-    prof = Profiler()
+
     async with aiohttp.ClientSession() as session:
         pending = []
-        for game in games_list:
-            payload = {"key": STEAM_SECRET_KEY, "appid": game["appid"], "steamid": steamid}
+        for game in game_list:
+            payload = {
+                "key": STEAM_SECRET_KEY,
+                "appid": game["appid"],
+                "steamid": steamid,
+            }
             pending.append(
                 asyncio.create_task(fetch_data(session, GAME_INFO_URL, payload))
             )
@@ -108,72 +126,55 @@ async def prepare_game_info(steamid, lang, game_list):
             for done_task in done:
                 result = await done_task
                 try:
-                    data = result[0]["playerstats"]
-                    app_id = result[1]["appid"]
-                    done_achievements = sum(
-                        1
-                        for achievement_data in data["achievements"]
-                        if achievement_data["achieved"] == 1
+                    game_info = GameInfo()
+                    game_info.app_id = result[1]["appid"]
+
+                    await get_achievements_info(
+                        game_info, result[0]["playerstats"], lang
                     )
 
-                    achievements_cache_key = f"/achievements/{app_id}/{lang}"
-                    achievements_info = cache.get(achievements_cache_key)
-                    if not achievements_info:
-                        ach_list_result = await get_achievements_info(app_id, lang)
-                        achievements_info = ach_list_result["game"][
-                            "availableGameStats"
-                        ]["achievements"]
-                        cache.set(achievements_cache_key, achievements_info)
+                    response.data.append(game_info.serialize())
 
-                    ach_list = [
-                        i
-                        for i in achievements_info
-                        if any(
-                            a["apiname"] == i["name"]
-                            for a in data["achievements"]
-                            if a["achieved"] == 0
-                        )
-                    ]
-
-                    for item in achievements_info:
-                        icon_url = item["icon"]
-                        icongray_url = item["icongray"]
-                        item["icon"] = os.path.splitext(
-                            os.path.basename(urlparse(icon_url).path)
-                        )[0]
-                        item["icongray"] = os.path.splitext(
-                            os.path.basename(urlparse(icongray_url).path)
-                        )[0]
-                        del item["defaultvalue"]
-                        del item["hidden"]
-                        del item["name"]
-
-                    game_info = GameInfo(
-                        app_id,
-                        data["gameName"],
-                        len(data["achievements"]),
-                        done_achievements,
-                        ach_list,
-                    )
-                    info_list.append(game_info.serialize())
                     overall_ach_count += game_info.achievements_count
                     overall_done_ach_count += game_info.achievements_done
                 except KeyError:
                     pass
-                except Exception as ex:
-                    print(ex)
-    print("Done in", prof.elapsed)
-    return jsonify(
-        {
-            "code": code,
-            "status": status,
-            "overall_done_ach_count": overall_done_ach_count,
-            "overall_ach_count": overall_ach_count,
-            "game_data": info_list,
+                except Exception:
+                    pass
+    res = {
+        "code": response.code,
+        "status": response.status,
+        "overall_done_ach_count": overall_done_ach_count,
+        "overall_ach_count": overall_ach_count,
+        "game_data": response.data,
+    }
+    return res
+
+
+@app.route("/data/<steamid>")
+@app.route("/data/<steamid>/<lang>")
+async def index(steamid, lang="english"):
+    steamid_cache_key = f"/data/{steamid}"
+
+    data = cache.get(steamid_cache_key)
+    response = DefaultResponse()
+    if not data:
+        games_list, response.code = await get_game_list(steamid)
+        cache.set(steamid_cache_key, games_list)
+    else:
+        games_list = data
+    if response.status:
+        print("Start parsing games...")
+        res = await prepare_game_info(steamid=steamid, lang=lang, game_list=games_list)
+    else:
+        res = {
+            "code": response.code,
+            "status": response.status,
+            "message": response.message,
         }
-    )
     print(global_profiler.info)
     global_profiler.reset()
+    return jsonify(res)
 
 
 if __name__ == "__main__":
