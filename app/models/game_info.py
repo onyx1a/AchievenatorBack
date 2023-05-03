@@ -4,19 +4,12 @@ from typing import Any
 
 
 class GameInfo:
-    def __init__(
-        self,
-        app_id: int,
-        title: str,
-        achievements_count: int,
-        achievements_done: int,
-        achievements_info,
-    ) -> None:
-        self.app_id = app_id
-        self.title = title
-        self.achievements_count = achievements_count
-        self.achievements_done = achievements_done
-        self.achievements_info = achievements_info
+    def __init__(self) -> None:
+        self.app_id = 0
+        self.title = ""
+        self.achievements_count = 0
+        self.achievements_done = 0
+        self.achievements_info = []
 
     @property
     def score(self) -> int:
