@@ -31,11 +31,3 @@ class GameInfo:
             "a_done": self.achievements_done,
             "a_info": self.achievements_info,
         }
-
-    def to_json(self):
-        return json.dumps(self.__dict__)
-
-
-class GameInfoEncoder(JSONEncoder):
-    def default(self, o: Any) -> Any:
-        return o.__dict__

@@ -1,6 +1,7 @@
 from urllib.parse import urlparse
 
 import os
+import traceback
 import asyncio
 import aiohttp
 
@@ -52,6 +53,7 @@ async def get_game_list(steamid):
     payload = {
         "key": STEAM_SECRET_KEY,
         "steamid": steamid,
+        "include_played_free_games": "true",
         "format": "json",
     }
     timeout = aiohttp.ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
