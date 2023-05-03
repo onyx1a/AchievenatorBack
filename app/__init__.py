@@ -92,7 +92,7 @@ async def get_achievements_info(game_info, data, lang):
                 os.path.basename(urlparse(i["icongray"]).path)
             )[0],
             "description": i["description"] if "description" in i else "",
-            "name": i["name"],
+            "displayName": i["displayName"],
         }
         for a in data["achievements"]
         for i in achievements_info
