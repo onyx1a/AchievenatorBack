@@ -7,7 +7,7 @@ import aiohttp
 from flask import Flask, jsonify
 from flask_caching import Cache
 
-from app.utils.profiler import Profiler
+from app.utils.profiler import InlineProfiler, GlobalProfiler
 from app.models.game_info import GameInfo
 
 config = {"DEBUG": True, "CACHE_TYPE": "SimpleCache", "CACHE_DEFAULT_TIMEOUT": 300}
@@ -17,6 +17,7 @@ app.config.from_mapping(config)
 app.json.ensure_ascii = False
 app.json.compact = True
 cache = Cache(app)
+global_profiler = GlobalProfiler()
 
 GAME_LIST_URL = "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/"
 GAME_INFO_URL = (
@@ -30,7 +31,8 @@ DEFAULT_REQUEST_TIMEOUT = 1
 GAME_COUNT = 5000
 
 
-async def get_achievements_info(appid, lang):
+@global_profiler.async_profiler
+async def fetch_achievements_info(appid, lang):
     async with aiohttp.ClientSession() as session:
         payload = {"key": STEAM_SECRET_KEY, "appid": appid, "l": lang}
         task = asyncio.create_task(fetch_data(session, ACHIEVEMENT_INFO_URL, payload))
@@ -44,6 +46,7 @@ async def fetch_data(session: aiohttp.ClientSession, url, payload):
         return await response.json(), payload
 
 
+@global_profiler.async_profiler
 async def get_game_list(steamid):
     payload = {
         "key": STEAM_SECRET_KEY,
@@ -52,7 +55,6 @@ async def get_game_list(steamid):
     }
     timeout = aiohttp.ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
     print("Getting data about games...")
-    prof = Profiler()
     games_list = []
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -73,6 +75,10 @@ async def get_game_list(steamid):
 @app.route("/data/<steamid>/<lang>")
 async def index(steamid, lang="english"):
     steamid_cache_key = f"/data/{steamid}"
+@global_profiler.async_profiler
+async def get_achievements_info(game_info, data, lang):
+@global_profiler.async_profiler
+async def prepare_game_info(steamid, lang, game_list):
 
     data = cache.get(steamid_cache_key)
     if not data:
@@ -166,6 +172,8 @@ async def index(steamid, lang="english"):
             "game_data": info_list,
         }
     )
+    print(global_profiler.info)
+    global_profiler.reset()
 
 
 if __name__ == "__main__":
