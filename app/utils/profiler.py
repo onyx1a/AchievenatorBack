@@ -26,8 +26,8 @@ class GlobalProfiler:
 
     def get_statistic(self):
         print("---")
-        for k, v in self.info.items():
-            print(k, round(sum(v), 2))
+        for key, value in self.info.items():
+            print(key, round(sum(value), 2))
         print("---")
 
     def async_profiler(self, func):

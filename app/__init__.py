@@ -72,10 +72,10 @@ async def get_game_list(steamid):
 
 
 @global_profiler.async_profiler
-async def prepare_achiev(game_info, data, achievements_info):
-    for a in data["achievements"]:
+async def prepare_achievements(game_info, data, achievements_info):
+    for achievement in data["achievements"]:
         for i in achievements_info:
-            if a["achieved"] == 0 and a["apiname"] == i["name"]:
+            if achievement["achieved"] == 0 and achievement["apiname"] == i["name"]:
                 field = {
                     "icon1": os.path.splitext(
                         os.path.basename(urlparse(i["icon"]).path)
@@ -106,7 +106,7 @@ async def get_achievements_info(game_info, data, lang):
     game_info.achievements_count = len(data["achievements"])
     game_info.title = data["gameName"]
 
-    await prepare_achiev(game_info, data, achievements_info)
+    await prepare_achievements(game_info, data, achievements_info)
 
     return game_info
 
