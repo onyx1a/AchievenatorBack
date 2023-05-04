@@ -29,10 +29,11 @@ class GlobalProfiler:
         for k, v in self.info.items():
             print(k, round(sum(v), 2))
         print("---")
+
     def async_profiler(self, func):
         async def inner(*args, **kwargs):
-            prof = InlineProfiler()
             idx = func.__name__
+            prof = InlineProfiler()
             result = await func(*args, **kwargs)
             self.add_data(idx, prof.elapsed)
             return result
@@ -41,8 +42,8 @@ class GlobalProfiler:
 
     def profiler(self, func):
         def inner(*args, **kwargs):
-            prof = InlineProfiler()
             idx = func.__name__
+            prof = InlineProfiler()
             result = func(*args, **kwargs)
             self.add_data(idx, prof.elapsed)
             return result
