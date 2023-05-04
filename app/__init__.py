@@ -72,6 +72,26 @@ async def get_game_list(steamid):
 
 
 @global_profiler.async_profiler
+async def prepare_achiev(game_info, data, achievements_info):
+    for a in data["achievements"]:
+        for i in achievements_info:
+            if a["achieved"] == 0 and a["apiname"] == i["name"]:
+                field = {
+                    "icon1": os.path.splitext(
+                        os.path.basename(urlparse(i["icon"]).path)
+                    )[0],
+                    "icon2": os.path.splitext(
+                        os.path.basename(urlparse(i["icongray"]).path)
+                    )[0],
+                    "name": i["displayName"],
+                }
+                if "description" in i:
+                    field["desc"] = i["description"]
+
+                game_info.achievements_info.append(field)
+
+
+# @global_profiler.async_profiler
 async def get_achievements_info(game_info, data, lang):
     achievements_cache_key = f"/achievements/{game_info.app_id}/{lang}"
     achievements_info = cache.get(achievements_cache_key)
@@ -85,19 +105,9 @@ async def get_achievements_info(game_info, data, lang):
     game_info.achievements_done = sum(1 for a in data["achievements"] if a["achieved"])
     game_info.achievements_count = len(data["achievements"])
     game_info.title = data["gameName"]
-    game_info.achievements_info.extend(
-        {
-            "icon": os.path.splitext(os.path.basename(urlparse(i["icon"]).path))[0],
-            "icongray": os.path.splitext(
-                os.path.basename(urlparse(i["icongray"]).path)
-            )[0],
-            "description": i["description"] if "description" in i else "",
-            "displayName": i["displayName"],
-        }
-        for a in data["achievements"]
-        for i in achievements_info
-        if a["achieved"] == 0 and a["apiname"] == i["name"]
-    )
+
+    await prepare_achiev(game_info, data, achievements_info)
+
     return game_info
 
 
