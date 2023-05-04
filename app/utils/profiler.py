@@ -24,6 +24,11 @@ class GlobalProfiler:
     def reset(self):
         self.info.clear()
 
+    def get_statistic(self):
+        print("---")
+        for k, v in self.info.items():
+            print(k, round(sum(v), 2))
+        print("---")
     def async_profiler(self, func):
         async def inner(*args, **kwargs):
             prof = InlineProfiler()

@@ -175,6 +175,7 @@ async def index(steamid, lang="english"):
             "message": response.message,
         }
     print(global_profiler.info)
+    global_profiler.get_statistic()
     global_profiler.reset()
     return jsonify(res)
 
