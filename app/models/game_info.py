@@ -1,27 +1,13 @@
-import json
-from json import JSONEncoder
-from typing import Any
+from dataclasses import dataclass
 
 
+@dataclass
 class GameInfo:
-    def __init__(self) -> None:
-        self.app_id = 0
-        self.title = ""
-        self.achievements_count = 0
-        self.achievements_done = 0
-        self.achievements_info = []
-
-    @property
-    def score(self) -> int:
-        return self.achievements_count - self.achievements_done
-
-    @property
-    def url_link(self) -> str:
-        return f"https://store.steampowered.com/app/{self.app_id}"
-
-    @property
-    def icon_url(self) -> str:
-        return f"https://media.steampowered.com/steamcommunity/public/images/apps/{self.app_id}/{self.img_icon_url_hash}.jpg"
+    app_id: int = 0
+    title: str = ""
+    achievements_count: int = 0
+    achievements_done: int = 0
+    achievements_info = []
 
     def serialize(self):
         return {
