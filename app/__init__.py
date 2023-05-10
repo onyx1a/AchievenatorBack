@@ -58,7 +58,6 @@ async def get_game_list(steamid):
     }
     timeout = aiohttp.ClientTimeout(total=DEFAULT_REQUEST_TIMEOUT)
     print("Getting data about games...")
-    games_list = []
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(GAME_LIST_URL, params=payload) as response:
@@ -73,9 +72,9 @@ async def get_game_list(steamid):
 
 @global_profiler.async_profiler
 async def prepare_achievements(game_info, data, achievements_info):
-    for achievement in data["achievements"]:
+    for achievement_name in data:
         for i in achievements_info:
-            if achievement["achieved"] == 0 and achievement["apiname"] == i["name"]:
+            if achievement_name == i["name"]:
                 field = {
                     "icon1": os.path.splitext(
                         os.path.basename(urlparse(i["icon"]).path)
@@ -89,6 +88,8 @@ async def prepare_achievements(game_info, data, achievements_info):
                     field["desc"] = i["description"]
 
                 game_info.achievements_info.append(field)
+                achievements_info.remove(i)
+                break
 
 
 # @global_profiler.async_profiler
@@ -102,11 +103,11 @@ async def get_achievements_info(game_info, data, lang):
         ]
         cache.set(achievements_cache_key, achievements_info)
 
-    game_info.achievements_done = sum(1 for a in data["achievements"] if a["achieved"])
-    game_info.achievements_count = len(data["achievements"])
     game_info.title = data["gameName"]
-
-    await prepare_achievements(game_info, data, achievements_info)
+    game_info.achievements_count = len(data["achievements"])
+    filtered_list = [a["apiname"] for a in data["achievements"] if a["achieved"] == 0]
+    game_info.achievements_done = game_info.achievements_count - len(filtered_list)
+    await prepare_achievements(game_info, filtered_list, achievements_info)
 
     return game_info
 

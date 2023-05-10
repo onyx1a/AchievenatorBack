@@ -7,7 +7,11 @@ class GameInfo:
     title: str = ""
     achievements_count: int = 0
     achievements_done: int = 0
-    achievements_info = []
+    achievements_info = None
+
+    def __post_init__(self):
+        if self.achievements_info is None:
+            self.achievements_info = []
 
     def serialize(self):
         return {
